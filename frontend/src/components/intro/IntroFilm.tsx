@@ -6,11 +6,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildCues, SCENES, SceneTimeProvider } from "./scenes";
-import { BAR, BEAT, FilmAudio, type SongPlan } from "./sound";
+import { BAR, FilmAudio, type SongPlan } from "./sound";
+import { beatPulse, END_UI_AT, FADE_FROM, TRACK_OFFSET, TRACK_URL } from "./track";
 
+/** Only used if the music file can't be loaded: the synthesised fallback song. */
 const SONG: SongPlan = { drumsFrom: 2, drumsUntil: 22, busyFrom: 12, titleBar: 23, finalBar: 24 };
-/** When the end buttons appear (the logo is fully revealed by then). */
-const END_UI_AT = 50.5;
 
 const BOUNCE = { type: "spring", stiffness: 520, damping: 15 } as const;
 
@@ -30,13 +30,13 @@ const GLOWS: [string, string][] = [
 type Status = "idle" | "playing" | "ended";
 
 /**
- * The TravelTrack reveal: a ~54s self-playing film with a synthesised soundtrack.
+ * The TravelTrack reveal: a ~57s self-playing film cut to "Bull" by Next Route (see track.ts).
  * The audio clock is the master clock; the visuals read it every frame to pick the scene,
- * so cuts and hits stay on the beat. Space/Enter starts it, M mutes, R replays.
+ * so cuts and hits stay on the music. Space/Enter starts it, M mutes, R replays.
  */
 export function IntroFilm() {
-  const { cues, starts, total } = useMemo(() => buildCues(BAR), []);
-  const totalBars = useMemo(() => SCENES.reduce((n, s) => n + s.bars, 0), []);
+  const { cues, starts, total } = useMemo(() => buildCues(), []);
+  const totalBars = Math.ceil(total / BAR);
 
   const [status, setStatus] = useState<Status>("idle");
   const [t, setT] = useState(0);
@@ -44,6 +44,14 @@ export function IntroFilm() {
   const audio = useRef<FilmAudio | null>(null);
   const raf = useRef<number | null>(null);
   const fallbackStart = useRef(0);
+  const [loading, setLoading] = useState(false);
+  // Fetch the music as soon as the page opens, so Play starts almost instantly.
+  const trackData = useRef<Promise<ArrayBuffer | null> | null>(null);
+  useEffect(() => {
+    trackData.current = fetch(TRACK_URL)
+      .then((r) => (r.ok ? r.arrayBuffer() : null))
+      .catch(() => null);
+  }, []);
 
   const stop = useCallback(() => {
     if (raf.current !== null) cancelAnimationFrame(raf.current);
@@ -57,13 +65,18 @@ export function IntroFilm() {
   const play = useCallback(async () => {
     stop();
     setT(0);
+    setLoading(true);
     try {
       const a = new FilmAudio();
-      await a.start(totalBars, cues, SONG);
+      const data = await (trackData.current ?? Promise.resolve(null));
+      if (data) await a.startTrack(data, cues, { offset: TRACK_OFFSET, duration: total, fadeFrom: FADE_FROM });
+      else await a.start(totalBars, cues, SONG); // music file unavailable: synthesised fallback
       a.setMuted(muted);
       audio.current = a;
     } catch {
       audio.current = null; // no Web Audio: the film still plays, silently
+    } finally {
+      setLoading(false);
     }
     fallbackStart.current = performance.now();
     setStatus("playing");
@@ -107,10 +120,8 @@ export function IntroFilm() {
   const sceneT = t - starts[index]!;
   const glow = GLOWS[index] ?? GLOWS[0]!;
 
-  // A soft pulse on every beat while the drums play.
-  const drums = t >= SONG.drumsFrom * BAR && t < SONG.drumsUntil * BAR;
-  const beatPhase = (t % BEAT) / BEAT;
-  const pulse = drums ? 1 + 0.035 * (1 - beatPhase) ** 3 : 1;
+  // The background swells on every kick of the track.
+  const pulse = status === "playing" ? beatPulse(t) : 1;
   const showEnd = status === "ended" || (status === "playing" && t >= END_UI_AT);
 
   return (
@@ -222,6 +233,8 @@ export function IntroFilm() {
               <motion.button
                 type="button"
                 onClick={() => void play()}
+                disabled={loading}
+                aria-busy={loading}
                 className="group relative mt-10 flex h-24 w-24 items-center justify-center rounded-full bg-[#7AF09A] text-[#062A12] shadow-[0_20px_60px_-10px_rgba(122,240,154,0.7)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#7AF09A]"
                 aria-label="Play the TravelTrack reveal"
                 initial={{ scale: 0 }}
@@ -235,7 +248,11 @@ export function IntroFilm() {
                   animate={{ scale: [1, 1.6], opacity: [0.7, 0] }}
                   transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }}
                 />
-                <Play size={36} strokeWidth={2.4} className="ml-1.5" fill="currentColor" />
+                {loading ? (
+                  <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-[#062A12]/25 border-t-[#062A12]" aria-hidden />
+                ) : (
+                  <Play size={36} strokeWidth={2.4} className="ml-1.5" fill="currentColor" />
+                )}
               </motion.button>
               <p className="mt-6 text-sm text-[#6C756E]">Space to play · M to mute</p>
             </motion.div>

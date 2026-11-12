@@ -66,6 +66,28 @@ export class FilmAudio {
     for (const c of cues) this.fx(c.fx, this.t0 + c.t, c.arg);
   }
 
+  /**
+   * Plays a music file instead of the synthesised song, with the sound effects layered on top.
+   * The visuals read `elapsed()`, which only starts counting once the file is decoded, so the
+   * picture waits for the music rather than drifting ahead of it.
+   */
+  async startTrack(data: ArrayBuffer, cues: Cue[], opt: { offset: number; duration: number; fadeFrom: number }) {
+    if (this.ctx.state === "suspended") await this.ctx.resume();
+    const buffer = await this.ctx.decodeAudioData(data.slice(0)); // slice: decoding detaches the buffer, keep it for replays
+    this.t0 = this.ctx.currentTime + 0.12;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const level = 0.72; // the file is mastered hot; leave room for the effects
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(level, this.t0);
+    g.gain.setValueAtTime(level, this.t0 + opt.fadeFrom);
+    g.gain.linearRampToValueAtTime(0.0001, this.t0 + opt.duration);
+    src.connect(g).connect(this.master);
+    src.start(this.t0, opt.offset, opt.duration + 0.2);
+    this.sfx.gain.value = 0.45; // the track carries the energy; effects are accents
+    for (const c of cues) this.fx(c.fx, this.t0 + c.t, c.arg);
+  }
+
   /** Seconds since the film started, on the audio clock. */
   elapsed(): number {
     return Math.max(0, this.ctx.currentTime - this.t0);
