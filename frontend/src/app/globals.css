@@ -1,0 +1,363 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens. Every colour is stored as RGB channels (--x-rgb) so Tailwind opacity
+ * modifiers work, and re-exposed as a ready colour (--x) for hand-written CSS and SVG.
+ * Light is the primary theme; dark follows the device.
+ */
+:root {
+  --canvas-rgb: 231 233 228; /* #E7E9E4 */
+  --surface-rgb: 255 255 255; /* #FFFFFF */
+  --surface-soft-rgb: 242 244 239; /* #F2F4EF */
+  --ink-rgb: 13 18 16; /* #0D1210 */
+  --ink-2-rgb: 90 98 92; /* #5A625C */
+  --ink-3-rgb: 142 150 143; /* #8E968F */
+  --dark-card-rgb: 14 20 17; /* #0E1411 */
+  --on-dark-rgb: 241 245 240; /* #F1F5F0 */
+  --on-dark-2-rgb: 155 165 157; /* #9BA59D */
+  --accent-rgb: 122 240 154; /* #7AF09A */
+  --accent-ink-rgb: 6 42 18; /* #062A12 */
+  --accent-deep-rgb: 21 128 61; /* #15803D */
+  --warn-rgb: 245 184 61; /* #F5B83D */
+  --warn-ink-rgb: 58 42 0; /* #3A2A00 */
+  --danger-rgb: 217 45 32; /* #D92D20 */
+
+  --line: rgba(13, 18, 16, 0.08);
+  --line-on-dark: rgba(255, 255, 255, 0.1);
+
+  --shadow-card: 0 1px 2px rgba(13, 18, 16, 0.04), 0 10px 28px -14px rgba(13, 18, 16, 0.18);
+  --shadow-float: 0 18px 44px -16px rgba(13, 18, 16, 0.34);
+  --shadow-nav: 0 14px 36px -12px rgba(13, 18, 16, 0.3), 0 2px 6px rgba(13, 18, 16, 0.06);
+
+  /* Floating bottom nav: bar height + its gap from the screen edge. */
+  --nav-h: 68px;
+  --nav-gap: max(12px, env(safe-area-inset-bottom));
+  /* Space a page must leave at the bottom so nothing hides behind the nav. */
+  --nav-space: calc(var(--nav-h) + var(--nav-gap) + 20px);
+  /* Width of the desktop sidebar (lg and up). */
+  --sidebar-w: 18rem;
+
+  color-scheme: light;
+}
+
+/* Desktop: navigation lives in the sidebar, so the floating bottom nav takes no space. */
+@media (min-width: 1024px) {
+  :root {
+    --nav-h: 0px;
+    --nav-gap: 0px;
+    --nav-space: 2.5rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas-rgb: 9 12 10; /* #090C0A */
+    --surface-rgb: 19 24 22; /* #131816 */
+    --surface-soft-rgb: 26 32 28; /* #1A201C */
+    --ink-rgb: 238 242 238; /* #EEF2EE */
+    --ink-2-rgb: 163 172 165; /* #A3ACA5 */
+    --ink-3-rgb: 108 117 110; /* #6C756E */
+    --dark-card-rgb: 27 34 30; /* #1B221E */
+    --accent-deep-rgb: 122 240 154; /* #7AF09A */
+    --danger-rgb: 248 113 104;
+
+    --line: rgba(255, 255, 255, 0.08);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.6);
+    --shadow-float: 0 18px 44px -16px rgba(0, 0, 0, 0.75);
+    --shadow-nav: 0 14px 36px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
+
+    color-scheme: dark;
+  }
+}
+
+:root {
+  --canvas: rgb(var(--canvas-rgb));
+  --surface: rgb(var(--surface-rgb));
+  --surface-soft: rgb(var(--surface-soft-rgb));
+  --ink: rgb(var(--ink-rgb));
+  --ink-2: rgb(var(--ink-2-rgb));
+  --ink-3: rgb(var(--ink-3-rgb));
+  --dark-card: rgb(var(--dark-card-rgb));
+  --on-dark: rgb(var(--on-dark-rgb));
+  --on-dark-2: rgb(var(--on-dark-2-rgb));
+  --accent: rgb(var(--accent-rgb));
+  --accent-ink: rgb(var(--accent-ink-rgb));
+  --accent-deep: rgb(var(--accent-deep-rgb));
+  --warn: rgb(var(--warn-rgb));
+  --warn-ink: rgb(var(--warn-ink-rgb));
+  --danger: rgb(var(--danger-rgb));
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  overflow-x: hidden;
+}
+
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Visible keyboard focus everywhere; mouse and touch stay clean. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--accent-deep);
+  outline-offset: 2px;
+}
+.on-dark :focus-visible {
+  outline-color: var(--accent);
+}
+
+::selection {
+  background: rgb(var(--accent-rgb) / 0.45);
+}
+
+@layer components {
+  /* Times, prices and counts line up. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Small caption above a value: sentence case, never uppercase-tracked. */
+  .label {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+  .on-dark .label {
+    color: var(--on-dark-2);
+  }
+
+  /* Big page title. */
+  .title {
+    font-size: 2rem;
+    line-height: 2.25rem;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  /* Form control. 16px text so iOS never zooms on focus. */
+  .field {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 16px;
+    border: 1.5px solid transparent;
+    background: var(--surface-soft);
+    padding: 0.75rem 1rem;
+    font-size: 16px;
+    line-height: 1.375rem;
+    color: var(--ink);
+    outline: none;
+    transition:
+      border-color 160ms ease,
+      background-color 160ms ease;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .field::placeholder {
+    color: var(--ink-3);
+  }
+  .field:focus,
+  .field:focus-visible {
+    outline: none;
+    border-color: var(--accent-deep);
+    background: var(--surface);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+  .field:disabled {
+    opacity: 0.55;
+  }
+  /* Use on a soft/canvas background where the default soft fill would disappear. */
+  .field-surface {
+    background: var(--surface);
+    border-color: var(--line);
+  }
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+}
+
+@layer utilities {
+  /* Safe-area helpers */
+  .pt-safe {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+  .pb-safe {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+  /* Leaves room for the floating bottom nav. */
+  .pb-nav {
+    padding-bottom: var(--nav-space);
+  }
+  .bottom-nav-gap {
+    bottom: var(--nav-gap);
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Horizontal chip/date rails that bleed to the screen edge inside a px-5 page. */
+  .rail {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    margin-inline: -1.25rem;
+    padding-inline: 1.25rem;
+    scroll-padding-inline: 1.25rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+  /* Desktop has room: chips wrap instead of scrolling sideways. */
+  @media (min-width: 1024px) {
+    .rail {
+      flex-wrap: wrap;
+      overflow-x: visible;
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+  }
+
+  /* Frosted surface for the floating nav and sticky bars. */
+  .frost {
+    background: rgb(var(--surface-rgb) / 0.82);
+    -webkit-backdrop-filter: saturate(1.4) blur(18px);
+    backdrop-filter: saturate(1.4) blur(18px);
+  }
+
+  .press {
+    transition: transform 140ms ease;
+  }
+  .press:active {
+    transform: scale(0.97);
+  }
+}
+
+/*
+ * Ticket notch strip: a 24px band between the two halves of a ticket with a real
+ * semicircular cut-out on each side (works on any backdrop, no colour matching).
+ */
+.ticket-notch {
+  --notch: 12px;
+  position: relative;
+  height: calc(var(--notch) * 2);
+  -webkit-mask-image:
+    radial-gradient(circle var(--notch) at 0 50%, transparent 97%, #000 100%),
+    radial-gradient(circle var(--notch) at 100% 50%, transparent 97%, #000 100%);
+  mask-image:
+    radial-gradient(circle var(--notch) at 0 50%, transparent 97%, #000 100%),
+    radial-gradient(circle var(--notch) at 100% 50%, transparent 97%, #000 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.ticket-notch::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--notch) + 10px);
+  right: calc(var(--notch) + 10px);
+  top: 50%;
+  border-top: 2px dashed currentColor;
+  opacity: 0.16;
+}
+
+/* Skeleton shimmer: only a transform animates. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--ink-rgb) / 0.07);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--surface-rgb) / 0.55), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.on-dark .skeleton {
+  background: rgb(var(--on-dark-rgb) / 0.08);
+}
+.on-dark .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgb(var(--on-dark-rgb) / 0.1), transparent);
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .press:active {
+    transform: none;
+  }
+  .skeleton::after {
+    display: none;
+  }
+}
