@@ -33,7 +33,9 @@ class Settings(BaseSettings):
 
     # Two rides match when both their pickups and their drops are within this many km.
     match_radius_km: float = 2.0
-    # Photon (OpenStreetMap) geocoder behind /places/search and /places/reverse.
+    # Place search behind /places/search and /places/reverse. With GEOAPIFY_API_KEY set it uses
+    # Geoapify (reliable, free tier); without it, the public Photon instance at GEOCODER_URL.
+    geoapify_api_key: str = ""
     geocoder_url: str = "https://photon.komoot.io"
 
     @property

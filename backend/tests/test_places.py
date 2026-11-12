@@ -180,3 +180,84 @@ def test_real_http_call_shape(monkeypatch):
     monkeypatch.setattr(httpx, "get", fake_get)
     assert geocoder.http_get("https://geocoder.test/api", {"q": "x"}) == {"features": []}
     assert seen["timeout"] == 4.0 and seen["params"] == {"q": "x"} and seen["checked"]
+
+
+# ---------------------------------------------------------------- Geoapify (GEOAPIFY_API_KEY set)
+
+
+@pytest.fixture()
+def geoapify(monkeypatch, photon):
+    """Switch the provider to Geoapify for one test; reuses the fake transport."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "geoapify_api_key", "test-key")
+    return photon
+
+
+def test_geoapify_search(client, login, geoapify):
+    calls, responses = geoapify
+    a = login("a.one@plaksha.edu.in")
+    responses["/autocomplete"] = {
+        "results": [
+            # Next to the Elante preset: dropped as a duplicate.
+            {"name": "Elante Mall", "city": "Chandigarh", "state": "Chandigarh", "lat": 30.7057, "lon": 76.8014},
+            {"name": "Elante Office Suites", "suburb": "Industrial Area Phase I", "city": "Chandigarh",
+             "state": "Chandigarh", "lat": 30.71, "lon": 76.805},
+            # No name: the first address line.
+            {"address_line1": "12 Elante Road", "city": "Mohali", "state": "Punjab", "lat": 30.69, "lon": 76.73},
+            {"name": "Nowhere", "lat": "not a number", "lon": 76.0},
+        ]
+    }
+    r = client.get("/places/search", params={"q": "elante"}, headers=a)
+    assert r.status_code == 200, r.text
+    assert r.json() == [
+        {"name": "Elante Mall", "detail": "", "lat": 30.7056, "lng": 76.8013},
+        {"name": "Elante Office Suites", "detail": "Industrial Area Phase I, Chandigarh", "lat": 30.71, "lng": 76.805},
+        {"name": "12 Elante Road", "detail": "Mohali, Punjab", "lat": 30.69, "lng": 76.73},
+    ]
+    url, params = calls[0]
+    assert url == "https://api.geoapify.com/v1/geocode/autocomplete"
+    assert params == {
+        "text": "elante", "limit": 6, "lang": "en", "filter": "countrycode:in",
+        "bias": "proximity:76.76,30.7", "format": "json", "apiKey": "test-key",
+    }
+
+
+def test_geoapify_reverse(client, login, geoapify):
+    calls, responses = geoapify
+    a = login("a.one@plaksha.edu.in")
+    responses["/reverse"] = {
+        "results": [{"name": "Sector 70 Market", "suburb": "Sector 70", "city": "Mohali", "state": "Punjab",
+                     "lat": 30.7002, "lon": 76.7201}]
+    }
+    r = client.get("/places/reverse", params={"lat": 30.7, "lng": 76.72}, headers=a)
+    assert r.json() == {"name": "Sector 70 Market", "detail": "Sector 70, Mohali, Punjab", "lat": 30.7, "lng": 76.72}
+    assert calls[0][0] == "https://api.geoapify.com/v1/geocode/reverse"
+    assert calls[0][1]["apiKey"] == "test-key"
+
+
+def test_presets_still_answer_when_geocoder_is_down(client, login, geoapify):
+    calls, responses = geoapify
+    a = login("a.one@plaksha.edu.in")
+    responses["/autocomplete"] = httpx.ConnectTimeout("timed out")
+    r = client.get("/places/search", params={"q": "elante"}, headers=a)
+    assert r.status_code == 200, r.text
+    assert [p["name"] for p in r.json()] == ["Elante Mall"]
+    # Not cached: once the geocoder is back, the same search reaches it.
+    responses["/autocomplete"] = {"results": [{"name": "Elante Office Suites", "lat": 30.71, "lon": 76.805}]}
+    r = client.get("/places/search", params={"q": "elante"}, headers=a)
+    assert [p["name"] for p in r.json()] == ["Elante Mall", "Elante Office Suites"]
+    # Nothing built in matches: the outage is reported.
+    responses["/autocomplete"] = httpx.ConnectTimeout("timed out")
+    assert client.get("/places/search", params={"q": "sector 70"}, headers=a).status_code == 502
+
+
+def test_api_key_never_logged(client, login, geoapify, caplog):
+    calls, responses = geoapify
+    a = login("a.one@plaksha.edu.in")
+    req = httpx.Request("GET", "https://api.geoapify.com/v1/geocode/autocomplete?text=x&apiKey=test-key")
+    responses["/autocomplete"] = httpx.HTTPStatusError("401", request=req, response=httpx.Response(401, request=req))
+    with caplog.at_level("WARNING"):
+        assert client.get("/places/search", params={"q": "sector 70"}, headers=a).status_code == 502
+    assert "geocoder call failed: HTTPStatusError (HTTP 401)" in caplog.text
+    assert "test-key" not in caplog.text and "sector" not in caplog.text
