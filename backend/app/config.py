@@ -42,7 +42,14 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = set()
+        for o in self.cors_origins.split(","):
+            cleaned = o.strip()
+            if cleaned:
+                origins.add(cleaned)
+                origins.add(cleaned.rstrip("/"))
+                origins.add(cleaned.rstrip("/") + "/")
+        return list(origins)
 
     @property
     def sqlalchemy_url(self) -> str:
